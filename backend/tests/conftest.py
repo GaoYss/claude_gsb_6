@@ -151,6 +151,33 @@ def make_replacement(make_space):
 
 
 @pytest.fixture()
+def make_hazard(make_space):
+    from app.services import HazardousTreeService
+
+    counter = {"n": 0}
+
+    def _make(space=None, **overrides):
+        space = space or make_space()
+        counter["n"] += 1
+        payload = {
+            "green_space_id": space.id,
+            "tree_name": f"危树香樟{counter['n']}",
+            "location": "北门行道第 3 株",
+            "risk_type": "fall",
+            "risk_level": "significant",
+            "source": "patrol",
+            "inspect_date": date(2026, 3, 10),
+            "inspector": "王海涛",
+            "basis": "雨后树干倾斜 15°，根部土壤开裂。",
+            "requirement": "3 日内支撑加固。",
+        }
+        payload.update(overrides)
+        return HazardousTreeService.create(payload)
+
+    return _make
+
+
+@pytest.fixture()
 def seeded(app):
     """写入演示数据（固定随机种子，保证断言稳定）。"""
 

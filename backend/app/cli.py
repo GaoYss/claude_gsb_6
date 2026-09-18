@@ -14,6 +14,7 @@ from .extensions import db
 from .models import GreenSpace
 from .services import (
     GreenSpaceService,
+    HazardousTreeService,
     MaintenanceRecordService,
     MaintenanceTaskService,
     PlantReplacementService,
@@ -164,6 +165,36 @@ WEATHERS = ["sunny", "cloudy", "overcast", "rain", "windy"]
 WORKERS = ["王海涛", "李建民", "张凤英", "吴国强", "何丽萍", "赵春生", "孙明华", "许娟"]
 SUPPLIERS = ["萧山苗木合作社", "临安绿源苗圃", "余杭花卉基地", "杭州城西园艺公司"]
 
+# (树名, 位置, 风险类型, 风险等级, 判定来源, 判定依据, 处置要求)
+HAZARD_POOL = [
+    ("香樟", "环城北路侧分带第 12 株", "fall", "major", "patrol",
+     "树干明显倾斜约 20°，根部土壤雨后出现裂缝与隆起，树穴周边铺装松动。",
+     "立即设置警戒围挡，24 小时内完成支撑加固或伐除，并加密雨后观测。"),
+    ("垂柳", "沿河游步道 K0+300 处", "branch", "significant", "special",
+     "树冠东侧主枝存在腐朽断面，台风季有折枝坠落风险，下方为游人通道。",
+     "3 日内截除腐朽主枝并做伤口处理，作业期间封闭游步道。"),
+    ("黄山栾树", "公园北入口广场西侧", "lean", "significant", "report",
+     "群众反映树干向停车位方向倾斜，现场核实倾斜持续发展。",
+     "拉索固定并修剪冠幅平衡重心，3 日内完成。"),
+    ("银杏", "文一西路辅道第 47 株", "deadwood", "general", "patrol",
+     "上部约三分之一枝条枯死，存在枯枝掉落风险，暂未发现主干腐朽。",
+     "本周内清除枯死枝，入冬前复查树势。"),
+    ("桂花", "小区中心绿地儿童活动区旁", "branch", "major", "special",
+     "主干分叉处撕裂性裂纹贯通，遇大风存在整株劈裂风险。",
+     "立即停止周边儿童活动并设围挡，24 小时内完成支撑或伐除。"),
+    ("染井吉野樱", "樱花大道第 88 株", "decay", "general", "patrol",
+     "树干基部腐朽中空约占截面四分之一，整体长势尚可。",
+     "清除腐朽组织并封堵，加固支撑，7 日内完成并安排复检。"),
+]
+
+DISPOSAL_NOTES = {
+    "support": "已架设三角钢管支撑并回填夯实树穴，周边设置警戒标识。",
+    "cable": "已安装钢丝绳拉索两组，并对冠幅进行疏枝平衡。",
+    "prune": "已截除风险枝条，伤口涂敷愈合剂，枝条已清运。",
+    "remove": "已整株伐除并清运，树穴填平，计划下月补植。",
+    "monitor": "已加密观测频次并设置围挡，安排专人每日巡查。",
+}
+
 
 def register_cli(app):
     app.cli.add_command(init_db_command)
@@ -207,7 +238,8 @@ def seed_command(reset, seed_value):
     summary = generate_demo_data(random.Random(seed_value))
     click.echo(
         "演示数据写入完成：绿地 {green_space} 处、养护任务 {maintenance_task} 条、"
-        "养护记录 {maintenance_record} 条、绿植更换 {plant_replacement} 条".format(**summary)
+        "养护记录 {maintenance_record} 条、绿植更换 {plant_replacement} 条、"
+        "危树 {hazardous_tree} 株".format(**summary)
     )
 
 
@@ -220,6 +252,7 @@ def generate_demo_data(rng):
         "maintenance_task": 0,
         "maintenance_record": 0,
         "plant_replacement": 0,
+        "hazardous_tree": 0,
     }
 
     for index, space_seed in enumerate(SPACE_SEEDS):
@@ -322,6 +355,61 @@ def generate_demo_data(rng):
             "status": "cancelled",
         })
         counts["maintenance_task"] += 1
+
+    # 危树排查演示：覆盖待排危（含逾期）/排危中/待复检/已闭环，以及复检不合格返工
+    active_spaces = (
+        db.session.query(GreenSpace)
+        .filter(GreenSpace.status != "archived")
+        .order_by(GreenSpace.id.asc())
+        .all()
+    )
+    # 每个场景：排查日期偏移、处置日期偏移、复检（结论, 日期偏移）
+    hazard_scenarios = [
+        (-10, None, None),                                  # 重大风险逾期未排
+        (-6, (-3, "prune"), ("failed", -1)),                # 复检不合格，退回排危中
+        (-4, (-1, "cable"), None),                          # 已处置待复检
+        (-12, (-9, "support"), ("passed", -7)),             # 复检合格已闭环
+        (-1, None, None),                                   # 新发现重大风险，处置期限内
+        (-8, (-6, "monitor"), ("passed", -5)),              # 一般风险加固观测后闭环
+    ]
+    for index, space in enumerate(active_spaces[: len(hazard_scenarios)]):
+        tree_name, location, risk_type, risk_level, source, basis, requirement = HAZARD_POOL[index]
+        inspect_offset, disposal_scene, recheck_scene = hazard_scenarios[index]
+        tree = HazardousTreeService.create({
+            "green_space_id": space.id,
+            "tree_name": f"{tree_name}（{location}）",
+            "location": location,
+            "risk_type": risk_type,
+            "risk_level": risk_level,
+            "source": source,
+            "inspect_date": today_ + timedelta(days=inspect_offset),
+            "inspector": rng.choice(WORKERS),
+            "basis": basis,
+            "requirement": requirement,
+        })
+        counts["hazardous_tree"] += 1
+        counts["maintenance_task"] += 1  # 登记危树自动生成一张排危任务
+
+        if disposal_scene is not None:
+            disposal_offset, action = disposal_scene
+            HazardousTreeService.register_disposal(tree.id, {
+                "disposal_action": action,
+                "disposal_date": today_ + timedelta(days=disposal_offset),
+                "disposer": "应急排危班",
+                "disposal_note": DISPOSAL_NOTES[action],
+            })
+        if recheck_scene is not None:
+            result, recheck_offset = recheck_scene
+            HazardousTreeService.register_recheck(tree.id, {
+                "recheck_result": result,
+                "recheck_date": today_ + timedelta(days=recheck_offset),
+                "rechecker": rng.choice(WORKERS),
+                "recheck_note": (
+                    "支撑仍有松动，雨后复测倾斜角度继续增大，需重新加固。"
+                    if result == "failed"
+                    else "支撑牢固，树体稳定，周边无安全隐患，同意闭环。"
+                ),
+            })
 
     db.session.commit()
     return counts

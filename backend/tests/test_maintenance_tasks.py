@@ -112,7 +112,7 @@ def test_delete_task_requires_force_when_records_exist(api, make_task, make_reco
     assert response.status_code == 409
 
     data = api.data(api.delete(f"/api/v1/maintenance-tasks/{task.id}", force="true"))
-    assert data == {"detached_records": 1}
+    assert data == {"detached_records": 1, "detached_hazardous_trees": 0}
     # 强制删除后养护记录保留，仅解除关联
     records = api.data(api.get("/api/v1/maintenance-records", unlinked="true"))
     assert records["meta"]["total"] == 1

@@ -110,3 +110,30 @@ def replacement_filters(args):
     filters["date_from"] = _date(args, "date_from")
     filters["date_to"] = _date(args, "date_to")
     return filters
+
+
+def hazard_filters(args):
+    filters = {}
+    green_space_id = _int(args, "green_space_id")
+    if green_space_id:
+        filters["green_space_id"] = green_space_id
+    maintenance_task_id = _int(args, "maintenance_task_id")
+    if maintenance_task_id:
+        filters["maintenance_task_id"] = maintenance_task_id
+    for key, group_key in (
+        ("status", "hazard_status"),
+        ("risk_level", "hazard_risk_level"),
+        ("risk_type", "hazard_risk_type"),
+        ("source", "hazard_source"),
+    ):
+        value = _enum(args, key, group_key)
+        if value:
+            filters[key] = value
+    keyword = _text(args, "keyword")
+    if keyword:
+        filters["keyword"] = keyword
+    filters["date_from"] = _date(args, "date_from")
+    filters["date_to"] = _date(args, "date_to")
+    filters["open"] = _flag(args, "open")
+    filters["overdue"] = _flag(args, "overdue")
+    return filters

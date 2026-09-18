@@ -41,6 +41,9 @@
       <StatCard label="养护任务" :value="formatNumber(taskTotal)" unit="项"
                 :hint="`已完成 ${statistics.task_status.completed || 0} 项，进行中 ${(statistics.task_status.in_progress || 0) + (statistics.task_status.pending || 0)} 项`"
                 tone="info" icon="Tickets" />
+      <StatCard label="危树排查" :value="formatNumber(statistics.open_hazard_count ?? 0)" unit="株未闭环"
+                :hint="`累计登记 ${formatNumber(statistics.hazard_total ?? 0)} 株`"
+                :tone="(statistics.open_hazard_count ?? 0) ? 'danger' : 'default'" icon="WarningFilled" />
     </div>
 
     <div class="panel">
@@ -127,6 +130,44 @@
             </el-tag>
           </div>
         </el-tab-pane>
+
+        <el-tab-pane label="危树排查" name="hazards">
+          <div class="tab-actions">
+            <el-button link type="primary" @click="goList('hazards')">查看全部危树</el-button>
+          </div>
+          <el-table :data="recentHazardousTrees" size="small" empty-text="暂无危树登记">
+            <el-table-column prop="tree_no" label="危树编号" width="155" />
+            <el-table-column prop="tree_name" label="树木 / 位置" min-width="170" show-overflow-tooltip>
+              <template #default="{ row }">
+                {{ row.tree_name }}
+                <span v-if="row.location" class="cell-sub">{{ row.location }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="风险等级" width="95">
+              <template #default="{ row }">
+                <EnumTag group="hazard_risk_level" :value="row.risk_level" :label="row.risk_level_label" />
+              </template>
+            </el-table-column>
+            <el-table-column label="风险类型" width="100">
+              <template #default="{ row }">
+                <EnumTag group="hazard_risk_type" :value="row.risk_type" :label="row.risk_type_label" />
+              </template>
+            </el-table-column>
+            <el-table-column prop="inspect_date" label="排查日期" width="105" />
+            <el-table-column label="状态" width="95">
+              <template #default="{ row }">
+                <EnumTag group="hazard_status" :value="row.status" :label="row.status_label" />
+              </template>
+            </el-table-column>
+            <el-table-column label="复检结论" width="100">
+              <template #default="{ row }">
+                <EnumTag v-if="row.recheck_result" group="recheck_result" :value="row.recheck_result"
+                         :label="row.recheck_result_label" />
+                <span v-else class="summary-text">未复检</span>
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-tab-pane>
       </el-tabs>
     </div>
 
@@ -153,10 +194,11 @@ const loading = ref(false)
 const activeTab = ref('tasks')
 
 const space = ref({})
-const statistics = ref({ task_status: {}, record_count: 0, total_work_hours: 0, replacement_count: 0, replacement_quantity: 0, replacement_amount: 0 })
+const statistics = ref({ task_status: {}, record_count: 0, total_work_hours: 0, replacement_count: 0, replacement_quantity: 0, replacement_amount: 0, hazard_total: 0, open_hazard_count: 0 })
 const recentTasks = ref([])
 const recentRecords = ref([])
 const recentReplacements = ref([])
+const recentHazardousTrees = ref([])
 const replacementSummary = ref([])
 
 const taskTotal = computed(() =>
@@ -172,6 +214,7 @@ async function load() {
     recentTasks.value = data.recent_tasks || []
     recentRecords.value = data.recent_records || []
     recentReplacements.value = data.recent_replacements || []
+    recentHazardousTrees.value = data.recent_hazardous_trees || []
     replacementSummary.value = data.replacement_summary || []
   } finally {
     loading.value = false
@@ -182,6 +225,7 @@ const LIST_ROUTES = {
   tasks: 'task-list',
   records: 'record-list',
   replacements: 'replacement-list',
+  hazards: 'hazard-list',
 }
 
 function goList(name) {
@@ -208,5 +252,11 @@ onMounted(load)
 
 .summary-tag {
   margin-right: 4px;
+}
+
+.cell-sub {
+  display: block;
+  color: #909399;
+  font-size: 12px;
 }
 </style>

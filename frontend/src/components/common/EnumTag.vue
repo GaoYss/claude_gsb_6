@@ -18,9 +18,13 @@ const TAG_TYPES = {
   green_space_status: { normal: 'success', repairing: 'warning', suspended: 'info', archived: 'info' },
   task_status: { pending: 'info', in_progress: 'primary', completed: 'success', cancelled: 'danger' },
   task_priority: { low: 'info', medium: 'primary', high: 'warning', urgent: 'danger' },
+  task_type: { hazard: 'danger' },
   quality_result: { qualified: 'success', pending: 'warning', unqualified: 'danger' },
   maintenance_grade: { level1: 'success', level2: 'primary', level3: 'info' },
   replacement_reason: { dead: 'danger', disease: 'warning', aging: 'info', upgrade: 'primary' },
+  hazard_status: { pending: 'danger', processing: 'warning', recheck: 'primary', closed: 'success' },
+  hazard_risk_level: { major: 'danger', significant: 'warning', general: 'info' },
+  recheck_result: { passed: 'success', failed: 'danger' },
 }
 
 const meta = useMetaStore()

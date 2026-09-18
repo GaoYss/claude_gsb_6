@@ -5,7 +5,7 @@ from sqlalchemy import func, or_
 from ..constants import ENUM_GROUPS
 from ..errors import ConflictError, ValidationError
 from ..extensions import db
-from ..models import GreenSpace, MaintenanceRecord, MaintenanceTask, PlantReplacement
+from ..models import GreenSpace, HazardousTree, MaintenanceRecord, MaintenanceTask, PlantReplacement
 from ..models.maintenance_task import OPEN_STATUSES
 from ..models.mixins import utcnow
 from ..utils.dates import format_date, today
@@ -212,9 +212,19 @@ class MaintenanceTaskService(BaseService):
             db.session.query(MaintenanceRecord).filter(
                 MaintenanceRecord.task_id == task.id
             ).update({MaintenanceRecord.task_id: None}, synchronize_session=False)
+        linked_hazard = (
+            db.session.query(HazardousTree)
+            .filter(HazardousTree.maintenance_task_id == task.id)
+            .count()
+        )
+        if linked_hazard:
+            # 危树单保留，仅解除排危任务关联，危树闭环改由复检流程之外人工处理
+            db.session.query(HazardousTree).filter(
+                HazardousTree.maintenance_task_id == task.id
+            ).update({HazardousTree.maintenance_task_id: None}, synchronize_session=False)
         db.session.delete(task)
         db.session.commit()
-        return {"detached_records": record_count}
+        return {"detached_records": record_count, "detached_hazardous_trees": linked_hazard}
 
     @classmethod
     def status_summary(cls):

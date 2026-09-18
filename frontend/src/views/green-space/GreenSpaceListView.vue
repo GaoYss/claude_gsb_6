@@ -80,6 +80,14 @@
             </div>
           </template>
         </el-table-column>
+        <el-table-column label="危树" width="92" align="center">
+          <template #default="{ row }">
+            <el-tag v-if="row.statistics.open_hazard_count" type="danger" effect="plain" size="small">
+              {{ row.statistics.open_hazard_count }} 株未闭环
+            </el-tag>
+            <span v-else class="summary-text">无</span>
+          </template>
+        </el-table-column>
         <el-table-column label="操作" width="190" fixed="right">
           <template #default="{ row }">
             <el-button link type="primary" @click="goDetail(row)">档案</el-button>
@@ -147,12 +155,18 @@ async function onSaved() {
 }
 
 async function remove(row) {
-  const hasChildren = row.statistics.task_count + row.statistics.record_count + row.statistics.replacement_count > 0
+  const hasChildren =
+    row.statistics.task_count +
+    row.statistics.record_count +
+    row.statistics.replacement_count +
+    (row.statistics.open_hazard_count || 0) >
+    0
   try {
     if (hasChildren) {
       await ElMessageBox.confirm(
         `该绿地已关联 ${row.statistics.task_count} 项养护任务、${row.statistics.record_count} 条养护记录、` +
-          `${row.statistics.replacement_count} 条更换记录，删除将一并清除，是否继续？`,
+          `${row.statistics.replacement_count} 条更换记录、${row.statistics.open_hazard_count || 0} 株未闭环危树，` +
+          `删除将一并清除，是否继续？`,
         '存在关联数据',
         { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消' },
       )

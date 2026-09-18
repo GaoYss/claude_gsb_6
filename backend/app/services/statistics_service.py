@@ -6,7 +6,14 @@ from sqlalchemy import func
 
 from ..constants import ENUM_GROUPS
 from ..extensions import db
-from ..models import GreenSpace, MaintenanceRecord, MaintenanceTask, PlantReplacement
+from ..models import (
+    GreenSpace,
+    HazardousTree,
+    MaintenanceRecord,
+    MaintenanceTask,
+    PlantReplacement,
+)
+from ..models.hazardous_tree import OPEN_STATUSES as HAZARD_OPEN_STATUSES
 from ..models.maintenance_task import OPEN_STATUSES
 from ..utils.dates import today
 from ..utils.numbers import to_float
@@ -96,6 +103,36 @@ class StatisticsService:
             func.coalesce(func.sum(PlantReplacement.amount), 0),
         ).filter(PlantReplacement.replace_date >= year_start).one()
 
+        hazard_rows = (
+            db.session.query(HazardousTree.status, func.count(HazardousTree.id))
+            .group_by(HazardousTree.status)
+            .all()
+        )
+        hazard_status = {code: 0 for code in ENUM_GROUPS["hazard_status"].values}
+        for status, count in hazard_rows:
+            hazard_status[status] = count
+        hazard_open = sum(hazard_status[code] for code in HAZARD_OPEN_STATUSES)
+        hazard_major_open = (
+            db.session.query(func.count(HazardousTree.id))
+            .filter(
+                HazardousTree.status.in_(HAZARD_OPEN_STATUSES),
+                HazardousTree.risk_level == "major",
+            )
+            .scalar()
+            or 0
+        )
+        hazard_overdue = (
+            db.session.query(func.count(HazardousTree.id))
+            .join(MaintenanceTask, HazardousTree.maintenance_task_id == MaintenanceTask.id)
+            .filter(
+                HazardousTree.status.in_(HAZARD_OPEN_STATUSES),
+                MaintenanceTask.status.in_(OPEN_STATUSES),
+                MaintenanceTask.plan_date < current,
+            )
+            .scalar()
+            or 0
+        )
+
         completed = task_status.get("completed", 0)
         return {
             "generated_at": f"{current:%Y-%m-%d}",
@@ -127,6 +164,14 @@ class StatisticsService:
                 "month_amount": to_float(month_amount) or 0,
                 "year_quantity": to_float(year_quantity) or 0,
                 "year_amount": to_float(year_amount) or 0,
+            },
+            "hazard": {
+                "total": sum(hazard_status.values()),
+                "by_status": hazard_status,
+                "open_count": hazard_open,
+                "closed_count": hazard_status.get("closed", 0),
+                "major_open_count": hazard_major_open,
+                "overdue_count": hazard_overdue,
             },
         }
 
@@ -390,6 +435,8 @@ class StatisticsService:
     def dashboard(months=6):
         """看板一次性取数，减少前端并发请求。"""
 
+        from .hazardous_tree_service import HazardousTreeService
+
         return {
             "overview": StatisticsService.overview(),
             "distributions": StatisticsService.distributions(),
@@ -397,5 +444,6 @@ class StatisticsService:
             "ranking": StatisticsService.green_space_ranking(),
             "overdue_tasks": StatisticsService.overdue_tasks(),
             "upcoming_tasks": StatisticsService.upcoming_tasks(),
+            "hazard_alerts": HazardousTreeService.open_alerts(),
             "recent_activity": StatisticsService.recent_activity(),
         }

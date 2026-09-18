@@ -33,6 +33,12 @@ const routes = [
         meta: { title: '养护任务', icon: 'Tickets' },
       },
       {
+        path: 'hazardous-trees',
+        name: 'hazard-list',
+        component: () => import('@/views/hazard-tree/HazardListView.vue'),
+        meta: { title: '危树排查', icon: 'WarningFilled' },
+      },
+      {
         path: 'records',
         name: 'record-list',
         component: () => import('@/views/record/RecordListView.vue'),

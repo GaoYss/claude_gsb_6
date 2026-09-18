@@ -18,6 +18,12 @@ def test_overview_reflects_seeded_data(api, seeded):
     assert data["replacement"]["total"] == seeded["plant_replacement"]
     assert data["replacement"]["total_amount"] > 0
 
+    assert data["hazard"]["total"] == seeded["hazardous_tree"]
+    assert data["hazard"]["open_count"] > 0
+    assert data["hazard"]["closed_count"] >= 1
+    assert data["hazard"]["major_open_count"] >= 1
+    assert sum(data["hazard"]["by_status"].values()) == seeded["hazardous_tree"]
+
 
 def test_overdue_and_due_soon_reminders(api, make_space, make_task):
     space = make_space()
@@ -79,8 +85,9 @@ def test_dashboard_returns_all_sections(api, seeded):
     data = api.data(api.get("/api/v1/statistics/dashboard"))
     assert set(data) == {
         "overview", "distributions", "trends", "ranking",
-        "overdue_tasks", "upcoming_tasks", "recent_activity",
+        "overdue_tasks", "upcoming_tasks", "hazard_alerts", "recent_activity",
     }
     assert len(data["trends"]) == 6
+    assert data["hazard_alerts"]
     assert data["recent_activity"]["records"]
     assert data["recent_activity"]["replacements"]

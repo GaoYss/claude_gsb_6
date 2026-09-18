@@ -37,6 +37,14 @@
         icon="Notebook"
       />
       <StatCard
+        label="未闭环危树"
+        :value="formatNumber(overview.hazard.open_count)"
+        unit="株"
+        :hint="`重大 ${overview.hazard.major_open_count} 株，超期未闭环 ${overview.hazard.overdue_count} 株`"
+        :tone="overview.hazard.open_count ? 'danger' : 'default'"
+        icon="WarningFilled"
+      />
+      <StatCard
         label="本月绿植更换"
         :value="formatNumber(overview.replacement.month_quantity)"
         unit="株/㎡"
@@ -57,6 +65,49 @@
       <ChartPanel title="绿地类型分布" hint="按绿地处数" :option="typeChart" />
       <ChartPanel title="养护任务类型分布" hint="按任务条数" :option="taskTypeChart" />
       <ChartPanel title="绿植更换原因分布" hint="按更换数量" :option="reasonChart" />
+    </div>
+
+    <div v-if="dashboard.hazard_alerts?.length" class="panel hazard-panel">
+      <div class="table-toolbar">
+        <span class="panel-title">
+          未闭环危树提醒
+          <el-tag type="danger" size="small" effect="plain">{{ dashboard.hazard_alerts.length }}</el-tag>
+        </span>
+        <el-link type="primary" :underline="false" @click="router.push('/hazardous-trees?open=true')">
+          进入危树排查
+        </el-link>
+      </div>
+      <el-table :data="dashboard.hazard_alerts" size="small">
+        <el-table-column prop="tree_no" label="危树编号" width="150" />
+        <el-table-column prop="tree_name" label="树木 / 位置" min-width="180" show-overflow-tooltip>
+          <template #default="{ row }">
+            {{ row.tree_name }}
+            <span class="cell-sub">{{ row.location || '' }}</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="所属绿地" min-width="140" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.green_space?.name || '-' }}</template>
+        </el-table-column>
+        <el-table-column label="风险等级" width="100">
+          <template #default="{ row }">
+            <EnumTag group="hazard_risk_level" :value="row.risk_level" :label="row.risk_level_label" />
+          </template>
+        </el-table-column>
+        <el-table-column label="闭环状态" width="95">
+          <template #default="{ row }">
+            <EnumTag group="hazard_status" :value="row.status" :label="row.status_label" />
+          </template>
+        </el-table-column>
+        <el-table-column label="排危期限" width="150">
+          <template #default="{ row }">
+            <template v-if="row.task">
+              {{ row.task.plan_date }}
+              <el-tag v-if="row.task.is_overdue" type="danger" size="small" effect="plain">已超期</el-tag>
+            </template>
+            <span v-else>-</span>
+          </template>
+        </el-table-column>
+      </el-table>
     </div>
 
     <div class="dashboard-columns">
@@ -177,6 +228,7 @@ function emptyDashboard() {
       task: { total: 0, open_count: 0, overdue_count: 0, due_soon_count: 0, completion_rate: 0, by_status: {} },
       record: { total: 0, month_count: 0, month_work_hours: 0, total_work_hours: 0 },
       replacement: { total: 0, month_count: 0, month_quantity: 0, month_amount: 0, year_amount: 0, total_amount: 0 },
+      hazard: { total: 0, open_count: 0, closed_count: 0, major_open_count: 0, overdue_count: 0, by_status: {} },
     },
     distributions: {
       green_space_by_type: [],
@@ -188,6 +240,7 @@ function emptyDashboard() {
     ranking: [],
     overdue_tasks: [],
     upcoming_tasks: [],
+    hazard_alerts: [],
     recent_activity: { records: [], replacements: [] },
   }
 }
@@ -249,6 +302,16 @@ onMounted(load)
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
   gap: 16px;
+}
+
+.hazard-panel {
+  border-left: 3px solid #f56c6c;
+}
+
+.hazard-panel .cell-sub {
+  display: block;
+  color: #909399;
+  font-size: 12px;
 }
 
 .panel-title {
