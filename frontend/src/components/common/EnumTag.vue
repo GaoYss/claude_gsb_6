@@ -21,6 +21,9 @@ const TAG_TYPES = {
   quality_result: { qualified: 'success', pending: 'warning', unqualified: 'danger' },
   maintenance_grade: { level1: 'success', level2: 'primary', level3: 'info' },
   replacement_reason: { dead: 'danger', disease: 'warning', aging: 'info', upgrade: 'primary' },
+  hazard_status: { pending: 'danger', in_progress: 'warning', resolved: 'primary', closed: 'success' },
+  hazard_risk_level: { low: 'info', medium: 'warning', high: 'danger' },
+  recheck_result: { passed: 'success', failed: 'danger' },
 }
 
 const meta = useMetaStore()

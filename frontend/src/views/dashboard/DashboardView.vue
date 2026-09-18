@@ -50,6 +50,14 @@
         tone="info"
         icon="Money"
       />
+      <StatCard
+        label="未闭环危树"
+        :value="formatNumber(overview.hazard.open_count)"
+        unit="株"
+        :hint="`其中重大 ${overview.hazard.high_open_count} 株，累计登记 ${formatNumber(overview.hazard.total)} 株`"
+        :tone="overview.hazard.open_count ? 'danger' : 'default'"
+        icon="Warning"
+      />
     </div>
 
     <div class="chart-grid">
@@ -81,6 +89,35 @@
           </el-table-column>
           <el-table-column prop="executor" label="执行班组" width="110">
             <template #default="{ row }">{{ row.executor || '-' }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
+
+      <div class="panel">
+        <div class="table-toolbar">
+          <span class="panel-title">未闭环危树</span>
+          <el-link type="primary" :underline="false" @click="router.push('/hazards')">
+            进入危树排查
+          </el-link>
+        </div>
+        <el-table :data="dashboard.open_hazards" size="small" empty-text="暂无未闭环危树">
+          <el-table-column prop="hazard_no" label="危树编号" width="150" />
+          <el-table-column label="绿地" min-width="130">
+            <template #default="{ row }">{{ row.green_space?.name || '-' }}</template>
+          </el-table-column>
+          <el-table-column prop="tree_name" label="树种" width="100" />
+          <el-table-column label="风险等级" width="90">
+            <template #default="{ row }">
+              <EnumTag group="hazard_risk_level" :value="row.risk_level" :label="row.risk_level_label" />
+            </template>
+          </el-table-column>
+          <el-table-column label="状态" width="90">
+            <template #default="{ row }">
+              <EnumTag group="hazard_status" :value="row.status" :label="row.status_label" />
+            </template>
+          </el-table-column>
+          <el-table-column label="处置时限" width="105">
+            <template #default="{ row }">{{ row.dispose_deadline || '-' }}</template>
           </el-table-column>
         </el-table>
       </div>
@@ -177,6 +214,7 @@ function emptyDashboard() {
       task: { total: 0, open_count: 0, overdue_count: 0, due_soon_count: 0, completion_rate: 0, by_status: {} },
       record: { total: 0, month_count: 0, month_work_hours: 0, total_work_hours: 0 },
       replacement: { total: 0, month_count: 0, month_quantity: 0, month_amount: 0, year_amount: 0, total_amount: 0 },
+      hazard: { total: 0, open_count: 0, high_open_count: 0, by_status: {}, open_by_risk: {} },
     },
     distributions: {
       green_space_by_type: [],
@@ -188,6 +226,7 @@ function emptyDashboard() {
     ranking: [],
     overdue_tasks: [],
     upcoming_tasks: [],
+    open_hazards: [],
     recent_activity: { records: [], replacements: [] },
   }
 }

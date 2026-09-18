@@ -78,6 +78,9 @@
             <div class="summary-text">
               最近养护：{{ formatDate(row.statistics.last_maintenance_date) }}
             </div>
+            <div class="summary-text" :class="{ 'hazard-open': row.statistics.open_hazard_count > 0 }">
+              未闭环危树：{{ row.statistics.open_hazard_count }} 株
+            </div>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="190" fixed="right">
@@ -147,7 +150,8 @@ async function onSaved() {
 }
 
 async function remove(row) {
-  const hasChildren = row.statistics.task_count + row.statistics.record_count + row.statistics.replacement_count > 0
+  const hasChildren = row.statistics.task_count + row.statistics.record_count
+    + row.statistics.replacement_count + row.statistics.open_hazard_count > 0
   try {
     if (hasChildren) {
       await ElMessageBox.confirm(
@@ -189,5 +193,10 @@ onMounted(loadDistricts)
 .cell-sub {
   color: #909399;
   font-size: 12px;
+}
+
+.hazard-open {
+  color: #f56c6c;
+  font-weight: 600;
 }
 </style>

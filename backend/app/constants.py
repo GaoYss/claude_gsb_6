@@ -63,6 +63,7 @@ TASK_TYPE = EnumGroup("task_type", [
     ("clean", "保洁清扫"),
     ("replant", "补植补种"),
     ("winter", "防寒防冻"),
+    ("hazard", "危树排危"),
     ("other", "其他养护"),
 ])
 
@@ -130,6 +131,48 @@ MEASURE_UNIT = EnumGroup("measure_unit", [
     ("clump", "丛"),
 ])
 
+# ---------------------------------------------------------------- 危树排查
+HAZARD_SOURCE = EnumGroup("hazard_source", [
+    ("patrol", "日常巡查"),
+    ("special", "专项排查"),
+    ("report", "群众上报"),
+    ("other", "其他渠道"),
+])
+
+HAZARD_TYPE = EnumGroup("hazard_type", [
+    ("topple", "倒伏风险"),
+    ("branch_break", "折枝风险"),
+    ("both", "倒伏与折枝"),
+    ("other", "其他风险"),
+])
+
+HAZARD_RISK_LEVEL = EnumGroup("hazard_risk_level", [
+    ("low", "一般"),
+    ("medium", "较大"),
+    ("high", "重大"),
+])
+
+DISPOSAL_MEASURE = EnumGroup("disposal_measure", [
+    ("prune", "修剪除患"),
+    ("support", "支撑加固"),
+    ("fell", "砍伐移除"),
+    ("transplant", "移植避让"),
+    ("monitor", "监测观察"),
+    ("other", "其他措施"),
+])
+
+HAZARD_STATUS = EnumGroup("hazard_status", [
+    ("pending", "待处置"),
+    ("in_progress", "处置中"),
+    ("resolved", "待复检"),
+    ("closed", "已闭环"),
+])
+
+RECHECK_RESULT = EnumGroup("recheck_result", [
+    ("passed", "复检合格"),
+    ("failed", "复检不合格"),
+])
+
 # 前端下拉与文档共用的一份字典清单
 ENUM_GROUPS = {
     "green_space_type": GREEN_SPACE_TYPE,
@@ -144,6 +187,12 @@ ENUM_GROUPS = {
     "replacement_reason": REPLACEMENT_REASON,
     "old_plant_status": OLD_PLANT_STATUS,
     "measure_unit": MEASURE_UNIT,
+    "hazard_source": HAZARD_SOURCE,
+    "hazard_type": HAZARD_TYPE,
+    "hazard_risk_level": HAZARD_RISK_LEVEL,
+    "disposal_measure": DISPOSAL_MEASURE,
+    "hazard_status": HAZARD_STATUS,
+    "recheck_result": RECHECK_RESULT,
 }
 
 

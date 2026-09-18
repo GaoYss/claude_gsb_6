@@ -6,7 +6,8 @@ from sqlalchemy import func
 
 from ..constants import ENUM_GROUPS
 from ..extensions import db
-from ..models import GreenSpace, MaintenanceRecord, MaintenanceTask, PlantReplacement
+from ..models import GreenSpace, HazardTree, MaintenanceRecord, MaintenanceTask, PlantReplacement
+from ..models.hazard_tree import OPEN_STATUSES as HAZARD_OPEN_STATUSES
 from ..models.maintenance_task import OPEN_STATUSES
 from ..utils.dates import today
 from ..utils.numbers import to_float
@@ -96,6 +97,24 @@ class StatisticsService:
             func.coalesce(func.sum(PlantReplacement.amount), 0),
         ).filter(PlantReplacement.replace_date >= year_start).one()
 
+        hazard_rows = (
+            db.session.query(HazardTree.status, func.count(HazardTree.id))
+            .group_by(HazardTree.status)
+            .all()
+        )
+        hazard_status = {code: 0 for code in ENUM_GROUPS["hazard_status"].values}
+        for status, count in hazard_rows:
+            hazard_status[status] = count
+        open_hazard_rows = (
+            db.session.query(HazardTree.risk_level, func.count(HazardTree.id))
+            .filter(HazardTree.status.in_(HAZARD_OPEN_STATUSES))
+            .group_by(HazardTree.risk_level)
+            .all()
+        )
+        open_by_risk = {code: 0 for code in ENUM_GROUPS["hazard_risk_level"].values}
+        for risk_level, count in open_hazard_rows:
+            open_by_risk[risk_level] = count
+
         completed = task_status.get("completed", 0)
         return {
             "generated_at": f"{current:%Y-%m-%d}",
@@ -127,6 +146,13 @@ class StatisticsService:
                 "month_amount": to_float(month_amount) or 0,
                 "year_quantity": to_float(year_quantity) or 0,
                 "year_amount": to_float(year_amount) or 0,
+            },
+            "hazard": {
+                "total": sum(hazard_status.values()),
+                "by_status": hazard_status,
+                "open_count": sum(hazard_status.get(code, 0) for code in HAZARD_OPEN_STATUSES),
+                "open_by_risk": open_by_risk,
+                "high_open_count": open_by_risk.get("high", 0),
             },
         }
 
@@ -367,6 +393,24 @@ class StatisticsService:
         return [task.to_dict() for task in tasks]
 
     @staticmethod
+    def open_hazards(limit=10):
+        """未闭环危树清单：按风险等级（重大优先）与发现日期排序。"""
+
+        risk_order = db.case(
+            (HazardTree.risk_level == "high", 0),
+            (HazardTree.risk_level == "medium", 1),
+            else_=2,
+        )
+        hazards = (
+            db.session.query(HazardTree)
+            .filter(HazardTree.status.in_(HAZARD_OPEN_STATUSES))
+            .order_by(risk_order.asc(), HazardTree.found_date.asc())
+            .limit(limit)
+            .all()
+        )
+        return [item.to_dict() for item in hazards]
+
+    @staticmethod
     def recent_activity(limit=6):
         records = (
             db.session.query(MaintenanceRecord)
@@ -397,5 +441,6 @@ class StatisticsService:
             "ranking": StatisticsService.green_space_ranking(),
             "overdue_tasks": StatisticsService.overdue_tasks(),
             "upcoming_tasks": StatisticsService.upcoming_tasks(),
+            "open_hazards": StatisticsService.open_hazards(),
             "recent_activity": StatisticsService.recent_activity(),
         }

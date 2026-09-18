@@ -14,6 +14,7 @@ from .extensions import db
 from .models import GreenSpace
 from .services import (
     GreenSpaceService,
+    HazardTreeService,
     MaintenanceRecordService,
     MaintenanceTaskService,
     PlantReplacementService,
@@ -164,6 +165,28 @@ WEATHERS = ["sunny", "cloudy", "overcast", "rain", "windy"]
 WORKERS = ["王海涛", "李建民", "张凤英", "吴国强", "何丽萍", "赵春生", "孙明华", "许娟"]
 SUPPLIERS = ["萧山苗木合作社", "临安绿源苗圃", "余杭花卉基地", "杭州城西园艺公司"]
 
+# 树种、风险类型、风险等级、处置措施、位置、判定依据、处置要求
+HAZARD_SEEDS = [
+    ("香樟", "topple", "high", "fell", "东侧园路口",
+     "树干基部腐朽空洞，根系外露，树体倾斜约 15°，存在倒伏风险",
+     "周边人流量大，建议尽快砍伐移除，树穴恢复后补植同规格苗木"),
+    ("垂柳", "branch_break", "medium", "prune", "游船码头北侧",
+     "主枝干枯中空，遇大风天气易折断坠落",
+     "修剪去除干枯主枝，疏剪树冠降低风阻"),
+    ("银杏", "both", "high", "support", "文一西路 K2+300 处",
+     "树体倾斜且两根主枝劈裂，根部松动，倒伏与折枝风险并存",
+     "先行支撑加固并修剪劈裂枝，一周内复测倾斜度"),
+    ("黄山栾树", "branch_break", "low", "monitor", "中央草坪西侧",
+     "部分侧枝遭天牛蛀空，暂无明显坠落迹象",
+     "列入监测观察清单，每月复查，必要时修剪除患"),
+    ("染井吉野樱", "topple", "medium", "transplant", "樱花大道中段",
+     "树池过小且根部被铺装挤压，树体受力晃动",
+     "迁移至开阔区域并扩大树池，栽植后支撑固定"),
+    ("桂花", "branch_break", "medium", "prune", "小区 3 幢南侧",
+     "树冠过密且内膛枝干枯，台风季存在折枝风险",
+     "疏剪内膛枝与枯枝，控制冠幅"),
+]
+
 
 def register_cli(app):
     app.cli.add_command(init_db_command)
@@ -207,7 +230,8 @@ def seed_command(reset, seed_value):
     summary = generate_demo_data(random.Random(seed_value))
     click.echo(
         "演示数据写入完成：绿地 {green_space} 处、养护任务 {maintenance_task} 条、"
-        "养护记录 {maintenance_record} 条、绿植更换 {plant_replacement} 条".format(**summary)
+        "养护记录 {maintenance_record} 条、绿植更换 {plant_replacement} 条、"
+        "危树 {hazard_tree} 株".format(**summary)
     )
 
 
@@ -220,6 +244,7 @@ def generate_demo_data(rng):
         "maintenance_task": 0,
         "maintenance_record": 0,
         "plant_replacement": 0,
+        "hazard_tree": 0,
     }
 
     for index, space_seed in enumerate(SPACE_SEEDS):
@@ -307,6 +332,53 @@ def generate_demo_data(rng):
                 "quality_result": "qualified",
             })
             counts["maintenance_record"] += 1
+
+        # 危树排查：覆盖待处置、处置中、已闭环（含复检记录）场景
+        for _ in range(rng.randint(0, 2)):
+            if rng.random() < 0.35:
+                continue
+            (tree_name, hazard_type, risk_level, measure,
+             location, basis, requirement) = rng.choice(HAZARD_SEEDS)
+            found_date = today_ - timedelta(days=rng.randint(3, 90))
+            hazard = HazardTreeService.create({
+                "green_space_id": space.id,
+                "tree_name": tree_name,
+                "tree_count": rng.choice([1, 1, 1, 2, 3]),
+                "location": location,
+                "source": rng.choice(["patrol", "patrol", "special", "report"]),
+                "found_date": found_date,
+                "hazard_type": hazard_type,
+                "risk_level": risk_level,
+                "judgment_basis": basis,
+                "disposal_measure": measure,
+                "disposal_requirement": requirement,
+                "dispose_deadline": found_date + timedelta(days=rng.randint(5, 20)),
+                "inspector": rng.choice(WORKERS),
+            })
+            counts["hazard_tree"] += 1
+
+            stage = rng.random()
+            if stage < 0.45:
+                continue  # 待处置，尚未生成排危任务
+            HazardTreeService.generate_task(hazard.id, {
+                "plan_date": found_date + timedelta(days=rng.randint(1, 5)),
+                "executor": rng.choice(["绿化一班", "绿化二班", "应急班组"]),
+            })
+            counts["maintenance_task"] += 1
+            if stage < 0.75:
+                continue  # 处置中
+            HazardTreeService.change_status(hazard.id, {"status": "resolved"})
+            recheck_date = min(found_date + timedelta(days=rng.randint(10, 25)), today_)
+            result = "passed" if rng.random() < 0.7 else "failed"
+            HazardTreeService.add_reinspection(hazard.id, {
+                "recheck_date": recheck_date,
+                "result": result,
+                "inspector": rng.choice(WORKERS),
+                "note": "隐患已消除，复检合格" if result == "passed" else "支撑仍有松动，需重新加固",
+            })
+            if result == "passed":
+                # 闭环危树的排危任务同步标记完成
+                MaintenanceTaskService.change_status(hazard.task_id, {"status": "completed"})
 
     # 一条已取消任务，覆盖全部状态场景
     first_space = db.session.query(GreenSpace).order_by(GreenSpace.id.asc()).first()
